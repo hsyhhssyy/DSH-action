@@ -246,6 +246,13 @@ whitespace, and other argument-breaking forms are rejected even on read-only
 paths where a mutable tag remains compatible. This prevents Docker option
 injection but does not make an operator-selected image trustworthy.
 
+Repository materialization can reuse the host checkout as an untrusted blob
+cache. The immutable GitHub commit/tree remains authoritative: only bounded
+regular files with the matching size and Git blob SHA enter the snapshot.
+Symlink escapes and non-regular cache paths are ignored; misses use the existing
+immutable blob API. Untracked checkout files and `.git` are never exposed to
+the worker. This avoids exhausting token API quotas on large source trees.
+
 DSH receives an ephemeral proxy token. The Controller injects the real DeepSeek
 key only on fixed POST routes: model Messages, result-repair chat completions,
 the legacy search Messages endpoint, and the new `/v1/tools/search` and

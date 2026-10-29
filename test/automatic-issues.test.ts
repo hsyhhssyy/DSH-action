@@ -1,5 +1,7 @@
 import { getOctokit } from "@actions/github";
-import { access, readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -54,7 +56,14 @@ function policyInput(): PolicyInput {
   };
 }
 
-afterEach(() => vi.unstubAllEnvs());
+const checkoutRoots: string[] = [];
+
+afterEach(async () => {
+  vi.unstubAllEnvs();
+  await Promise.all(
+    checkoutRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
+  );
+});
 
 describe("maintainer-enabled automatic Issue analysis", () => {
   it("is off by default and never promotes Issue text into operator instructions", () => {
@@ -157,11 +166,17 @@ describe("maintainer-enabled automatic Issue analysis", () => {
   });
 
   it("materializes the default-branch commit without .git and revalidates an external author", async () => {
-    vi.stubEnv("GITHUB_WORKSPACE", process.cwd());
+    const checkout = await mkdtemp(join(tmpdir(), "dsh-automatic-issue-checkout-"));
+    checkoutRoots.push(checkout);
+    vi.stubEnv("GITHUB_WORKSPACE", checkout);
     const sha = "a".repeat(40);
     const treeSha = "b".repeat(40);
-    const blobSha = "c".repeat(40);
     const content = "export const answer = 42;\n";
+    const blobSha = createHash("sha1")
+      .update(`blob ${String(Buffer.byteLength(content))}\0`)
+      .update(content)
+      .digest("hex");
+    await writeFile(join(checkout, "answer.ts"), content);
     const requests: string[] = [];
     const transport: typeof fetch = (input, init) => {
       const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
@@ -224,6 +239,7 @@ describe("maintainer-enabled automatic Issue analysis", () => {
         signal,
       })();
       expect(requests).toContain("/repos/octo/repo/collaborators/contributor/permission");
+      expect(requests).not.toContain(`/repos/octo/repo/git/blobs/${blobSha}`);
     } finally {
       await disposeWorkspace(workspace);
     }

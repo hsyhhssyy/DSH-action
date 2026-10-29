@@ -5,6 +5,10 @@ versioning for published action releases.
 
 ## Unreleased
 
+- Reuses checked-out files only after byte-size and Git blob SHA verification
+  against the immutable API tree. Avoids one GitHub API request per unchanged
+  file in large repositories; missing, modified or unsafe cache paths are fetched
+  by immutable blob SHA without copying untracked files or following symlinks.
 - Adds default-off `auto-analyze-issues` for automatic read-only analysis of newly
   opened Issues, including external authors. Reuses SHA-bound Docker workspaces
   and task comments without granting shell, extensions, network authority or

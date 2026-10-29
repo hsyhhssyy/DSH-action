@@ -52,7 +52,7 @@ export async function prepareWorkspace(options: {
   readonly onFailureBeforeCleanup?: (error: unknown) => void;
 }): Promise<PreparedWorkspace> {
   const { client, context, snapshot, baseBranch, inputs, policy, signal } = options;
-  requireWorkspace();
+  const checkoutRoot = requireWorkspace();
   let tempRoot: string | undefined;
   try {
     if (
@@ -82,7 +82,7 @@ export async function prepareWorkspace(options: {
       context.repository.repo,
       baseSha,
       immutableSource,
-      { submodules: policy.capabilities.modifyWorkspace ? "reject" : "omit" },
+      { submodules: policy.capabilities.modifyWorkspace ? "reject" : "omit", checkoutRoot },
     );
     throwIfCancelled(signal);
     const agentWorkspace = join(tempRoot, "repository");

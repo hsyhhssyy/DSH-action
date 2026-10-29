@@ -1,7 +1,10 @@
-import { mkdir, writeFile, chmod } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { constants } from "node:fs";
+import { mkdir, writeFile, chmod, lstat, open, realpath } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 
 import type { GitHubClient } from "./client.js";
+import { assertPathWithin } from "../security/paths.js";
 import { validateCommitSha } from "../security/refs.js";
 
 const MAX_FILES = 50_000;
@@ -124,6 +127,43 @@ export interface MaterializedRepository {
   readonly omittedSubmodules?: readonly string[];
 }
 
+/** A checkout is only a blob cache: accept bounded regular files matching the pinned Git tree. */
+async function verifiedCheckoutBlob(
+  checkoutRoot: string,
+  entry: MaterializableBlob,
+): Promise<Buffer | undefined> {
+  try {
+    const root = await realpath(checkoutRoot);
+    const source = await assertPathWithin(root, entry.path);
+    if (source !== resolve(root, ...entry.path.split("/"))) return undefined;
+    const candidate = await lstat(source);
+    if (!candidate.isFile() || candidate.size !== entry.size) return undefined;
+    const handle = await open(source, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    try {
+      const metadata = await handle.stat();
+      if (!metadata.isFile() || metadata.size !== entry.size) return undefined;
+      const content = Buffer.alloc(entry.size);
+      let offset = 0;
+      while (offset < entry.size) {
+        const { bytesRead } = await handle.read(content, offset, entry.size - offset, offset);
+        if (bytesRead === 0) return undefined;
+        offset += bytesRead;
+      }
+      if ((await handle.read(Buffer.alloc(1), 0, 1, entry.size)).bytesRead !== 0) return undefined;
+      const sha = createHash("sha1")
+        .update(`blob ${String(content.byteLength)}\0`)
+        .update(content)
+        .digest("hex");
+      return sha === entry.sha ? content : undefined;
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    // Missing, changed or unsafe local paths are cache misses, never repository authority.
+    return undefined;
+  }
+}
+
 /** Materialize an immutable commit without checkout credentials, hooks or .git. */
 export async function materializeRepositoryAtSha(
   client: GitHubClient,
@@ -131,7 +171,10 @@ export async function materializeRepositoryAtSha(
   repo: string,
   sha: string,
   root: string,
-  options: { readonly submodules?: "reject" | "omit" } = {},
+  options: {
+    readonly submodules?: "reject" | "omit";
+    readonly checkoutRoot?: string;
+  } = {},
 ): Promise<MaterializedRepository> {
   const commitSha = validateCommitSha(sha);
   const commit = await client.rest.git.getCommit({ owner, repo, commit_sha: commitSha });
@@ -164,14 +207,20 @@ export async function materializeRepositoryAtSha(
       if (entry === undefined) return;
       try {
         const { path, size } = entry;
-        const blob = await client.rest.git.getBlob({ owner, repo, file_sha: entry.sha });
-        if (validateCommitSha(blob.data.sha) !== entry.sha) {
-          throw new Error(`GitHub returned a different blob SHA: ${path}`);
+        let content =
+          options.checkoutRoot === undefined
+            ? undefined
+            : await verifiedCheckoutBlob(options.checkoutRoot, entry);
+        if (content === undefined) {
+          const blob = await client.rest.git.getBlob({ owner, repo, file_sha: entry.sha });
+          if (validateCommitSha(blob.data.sha) !== entry.sha) {
+            throw new Error(`GitHub returned a different blob SHA: ${path}`);
+          }
+          if (blob.data.encoding !== "base64") {
+            throw new Error(`Unsupported blob encoding: ${path}`);
+          }
+          content = strictBase64(blob.data.content, path);
         }
-        if (blob.data.encoding !== "base64") {
-          throw new Error(`Unsupported blob encoding: ${path}`);
-        }
-        const content = strictBase64(blob.data.content, path);
         if (content.byteLength !== size) {
           throw new Error(`GitHub blob size changed while materializing: ${path}`);
         }

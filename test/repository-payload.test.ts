@@ -1,5 +1,6 @@
 import { githubClientFixture, githubTransportMock } from "./helpers/github-client.js";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -38,6 +39,75 @@ function api(entries: unknown[], content = "content\n") {
 }
 
 describe("immutable repository materialization", () => {
+  it("materializes more than the hourly token request limit using hash-verified checkout blobs", async () => {
+    const root = await mkdtemp(join(tmpdir(), "dsh-materialize-cache-"));
+    roots.push(root);
+    const checkout = join(root, "checkout");
+    await mkdir(checkout);
+    const content = Buffer.from("content\n");
+    const sha = createHash("sha1")
+      .update(`blob ${String(content.byteLength)}\0`)
+      .update(content)
+      .digest("hex");
+    const entries = Array.from({ length: 1001 }, (_, index) => ({
+      path: `file-${String(index)}.txt`,
+      type: "blob",
+      mode: "100644",
+      sha,
+      size: content.byteLength,
+    }));
+    for (const entry of entries) await writeFile(join(checkout, entry.path), content);
+    await writeFile(join(checkout, ".env"), "controller-only-secret");
+    const client = api(entries);
+    githubTransportMock(client.rest.git.getBlob).mockRejectedValue(new Error("Cache miss"));
+    const output = join(root, "repository");
+    await expect(
+      materializeRepositoryAtSha(client, "o", "r", commitSha, output, { checkoutRoot: checkout }),
+    ).resolves.toMatchObject({ files: 1001, bytes: 8008 });
+    expect(client.rest.git.getCommit).toHaveBeenCalledTimes(1);
+    expect(client.rest.git.getTree).toHaveBeenCalledTimes(1);
+    expect(client.rest.git.getBlob).not.toHaveBeenCalled();
+    expect(await readFile(join(output, "file-1000.txt"))).toEqual(content);
+    await expect(stat(join(output, ".env"))).rejects.toThrow();
+  });
+
+  it.each(["missing", "changed", "different-size", "directory", "symlink", "symlink-parent"])(
+    "fetches immutable API content instead of a %s checkout entry",
+    async (kind) => {
+      const root = await mkdtemp(join(tmpdir(), "dsh-materialize-cache-miss-"));
+      roots.push(root);
+      const checkout = join(root, "checkout");
+      const path = "src/file.ts";
+      await mkdir(join(checkout, "src"), { recursive: true });
+      if (kind === "changed" || kind === "different-size") {
+        await writeFile(join(checkout, path), kind === "changed" ? "changed\n" : "longer data\n");
+      } else if (kind === "directory") {
+        await mkdir(join(checkout, path));
+      } else if (kind === "symlink" || kind === "symlink-parent") {
+        const external = join(root, "outside");
+        await mkdir(external);
+        await writeFile(join(external, "file.ts"), "content\n");
+        if (kind === "symlink") {
+          await symlink(join(external, "file.ts"), join(checkout, path));
+        } else {
+          await rm(join(checkout, "src"), { recursive: true });
+          await symlink(external, join(checkout, "src"), "junction");
+        }
+      }
+      const sha = createHash("sha1").update("blob 8\0content\n").digest("hex");
+      const client = api([{ path, type: "blob", mode: "100644", sha, size: 8 }]);
+      githubTransportMock(client.rest.git.getBlob).mockResolvedValue({
+        data: { sha, encoding: "base64", content: Buffer.from("content\n").toString("base64") },
+      });
+      const output = join(root, "repository");
+      await materializeRepositoryAtSha(client, "o", "r", commitSha, output, {
+        checkoutRoot: checkout,
+      });
+      expect(client.rest.git.getBlob).toHaveBeenCalledTimes(1);
+      expect(await readFile(join(output, path), "utf8")).toBe("content\n");
+    },
+  );
+
   it("can explicitly omit gitlinks from read-only views without following their repository", async () => {
     const root = await mkdtemp(join(tmpdir(), "dsh-materialize-submodule-"));
     roots.push(root);

@@ -48,7 +48,11 @@ its complete tool graph and is not a read/search-only tool boundary. This route 
 network authority, file edits, labels, Git refs or PR creation, even when the same
 workflow sets `task-access: write` or `allow-write: "true"`. It reads the configured
 base branch (the default branch unless explicitly selected) through the existing
-SHA-bound, credential-free workspace pipeline. Read-only snapshots omit submodules
+SHA-bound, credential-free workspace pipeline. Existing checkout files are only a
+blob cache: size and Git blob SHA must match the immutable API tree before copying.
+Missing, changed or unsafe paths are fetched by immutable blob SHA; untracked
+files are not copied and symlinks are not followed. This avoids a separate API
+request for each unchanged file in large repositories. Read-only snapshots omit submodules
 without fetching them, and the context lists those unavailable paths. Write
 snapshots continue to reject submodules. Issue text remains untrusted
 context. Only literal workflow `prompt` or `prompt-file` can replace the default
