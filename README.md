@@ -18,6 +18,12 @@ The Action starts a credential-isolated DSH worker, validates its structured res
 
 ## Quick Start
 
+For automatic analysis when anyone opens an Issue, this fork adds the default-off
+`auto-analyze-issues` input. It reads an immutable repository snapshot in Docker
+and publishes a read-only task result. See the [Issue analysis template](examples/issue-analysis.yml)
+and [usage guide](docs/usage.md#automatic-issue-analysis). This input is unreleased;
+use a reviewed fork commit rather than the upstream `v0.12.2` tag.
+
 The Action runs DSH on GitHub-hosted Linux runners. **You do not need to install DSH or Docker on your computer.** Local DSH runs on your own computer; its keys and settings are separate from the GitHub Action.
 
 ### 1. Install the tools

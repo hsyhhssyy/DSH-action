@@ -38,6 +38,15 @@ that control-plane promotion.
   the rerun/triggering actor. Every identity must pass.
 - Automatic fork review remains available without trusting the pull request
   author, but it is restricted to the `untrusted` worker profile.
+- `auto-analyze-issues` is a separate, default-off maintainer authorization for
+  `issues.opened` automatic read-only tasks. That exact route may use the
+  `trusted-read` profile even when its author lacks write permission: the trust
+  describes the workflow's read authorization, not the author's instructions.
+  It grants only immutable repository reads and Controller-owned result comments,
+  with Docker and controlled composition required and actor/bot routing filters retained. Native
+  composition's DSH-owned capability graph is not admitted by this opt-in. It grants no
+  execution, extensions, external network authority or mutations. Explicit
+  commands, mentions, PR events and write requests retain their existing gates.
 - `allow-write` defaults to `false`. A code, Git ref, or pull-request mutation additionally requires a
   same-repository target, an eligible event, an unchanged bound identity and an
   explicitly pinned validation image. It also requires `run-tests=true`, at
@@ -85,7 +94,7 @@ with:
 ```
 
 The same rule applies to capability-bearing inputs such as `command`,
-`prompt-file`, `context-files`, `task-access`, `allow-write`, `dsh-mode`, `permission-profile`, `allowed-tools`,
+`prompt-file`, `context-files`, `task-access`, `allow-write`, `auto-analyze-issues`, `dsh-mode`, `permission-profile`, `allowed-tools`,
 `disallowed-tools`, `tool-config`, `mcp-config`, `plugin-config`,
 `allow-plugin-install`, `run-tests`, `test-commands`, `validation-integrity`,
 `container-image`, `base-url`, `web-search-base-url`, `isolation`, and

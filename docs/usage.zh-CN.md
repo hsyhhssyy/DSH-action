@@ -29,6 +29,33 @@ DeepSeek Harness 可以由仓库自动事件、自然语言 `@dsh` 请求、原�
 
 workflow 中的 `if: contains(..., '@dsh')` 只是粗略的 job 过滤条件；修改 `trigger-phrase` 时也要同步该条件。Action 仍会执行精确解析、上下文检查和授权。Label/assignee 路由以及 actor/comment filters 只影响维护者控制的路由，绝不授予 trust。
 
+## 自动分析新 Issue
+
+在维护者编写的 workflow 中订阅 `issues: [opened]`，并设置
+`auto-analyze-issues: "true"`。使用默认的 `command: auto` 时，每个新 Issue 都会
+进入只读 `task`，作者无需仓库写权限，也无需手动提及或添加标签。已有的
+`allowed-actors` 和 `allowed-bots` 过滤继续生效；机器人需要显式加入允许列表。
+
+使用 [examples/issue-analysis.yml](../examples/issue-analysis.yml)，把其中的 Action
+引用替换为包含此未发布功能、经过复核的 Fork commit。上游 `v0.12.2` 标签尚未包含此
+输入。工作流只需 `contents: read` 和 `issues: write`，保留
+`persist-credentials: false`。
+
+这个入口只授权读取不可变源码快照和由 Controller 发布结果评论，必须使用 Docker 和
+默认的 `dsh-mode: controlled`。Native 模式由 DSH 自主管理完整工具图，不是只开放源码
+读取与搜索的工具边界。
+即使同一工作流启用了 `task-access: write` 或 `allow-write: "true"`，自动 Issue
+分析也不会获得命令执行、扩展、网络、文件修改、标签、Git ref 或创建 PR 的能力。
+源码沿用已有的 SHA 绑定、无凭据工作区流程，来自配置的 base branch，默认是仓库默认
+分支。只读快照跳过子模块，不读取其仓库，并在上下文中列出这些无法访问的路径；写任务
+仍拒绝含子模块的快照。Issue 内容始终是非可信数据；只有维护者在 workflow 中设置的固定 `prompt` 或
+`prompt-file` 可以替换默认分析指令。显式 `command` 仍按原有优先级和授权执行；这个
+开关不会放宽交互式 `@dsh` 或 PR 审查的权限。
+
+分析复用 Controller-owned task 评论。编辑、重新打开等 Issue 事件不会自动重跑。
+保留每个 Issue 的串行 concurrency 和已有超时设置；启用后，每个符合过滤条件的新
+Issue 都可能消耗模型额度。
+
 ## 通用 task
 
 仓库问答和代码分析可以直接说：

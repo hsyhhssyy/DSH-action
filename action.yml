@@ -66,6 +66,10 @@ inputs:
     description: "Checkpoint retention, 1-7 days. Saves the complete raw DSH Session, referenced official attachment bytes and a bounded provenance manifest; credentials and Controller authorization are excluded."
     required: false
     default: "3"
+  auto-analyze-issues:
+    description: "Automatically route newly opened Issues to a read-only task when command is auto. Explicitly authorizes immutable repository reads for non-write authors, never execution, extensions, network, or writes. Requires controlled mode and Docker; actor and bot filters still apply."
+    required: false
+    default: "false"
   trigger-phrase:
     description: "Maintainer-controlled literal starting a direct, unquoted, non-code comment line. Accepts natural-language tasks and legacy commands. Routing only; it never grants authority."
     required: false

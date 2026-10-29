@@ -22,6 +22,7 @@ export interface PreparedWorkspace {
   readonly agentWorkspace: string;
   readonly snapshot?: WorkspaceSnapshot;
   readonly boundWriteSha?: string;
+  readonly omittedSubmodules?: readonly string[];
 }
 
 async function removeTemporaryWorkspace(tempRoot: string): Promise<void> {
@@ -75,12 +76,13 @@ export async function prepareWorkspace(options: {
       );
     })();
     throwIfCancelled(signal);
-    await materializeRepositoryAtSha(
+    const materialized = await materializeRepositoryAtSha(
       client,
       context.repository.owner,
       context.repository.repo,
       baseSha,
       immutableSource,
+      { submodules: policy.capabilities.modifyWorkspace ? "reject" : "omit" },
     );
     throwIfCancelled(signal);
     const agentWorkspace = join(tempRoot, "repository");
@@ -94,6 +96,9 @@ export async function prepareWorkspace(options: {
       agentWorkspace,
       snapshot: workspaceSnapshot,
       boundWriteSha: baseSha,
+      ...(materialized.omittedSubmodules === undefined
+        ? {}
+        : { omittedSubmodules: materialized.omittedSubmodules }),
     };
   } catch (error: unknown) {
     options.onFailureBeforeCleanup?.(error);

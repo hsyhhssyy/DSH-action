@@ -1,0 +1,40 @@
+# This input is unreleased. Select a reviewed commit of this fork containing it;
+# upstream v0.12.2 does not include auto-analyze-issues.
+name: DSH issue analysis
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: dsh-issue-analysis-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: hsyhhssyy/DSH-action@REPLACE_WITH_REVIEWED_COMMIT_SHA
+        with:
+          deepseek-api-key: ${{ secrets.DEEPSEEK_API_KEY }}
+          dsh-version: 0.2.1-rc.2
+          auto-analyze-issues: "true"
+          dsh-mode: controlled
+          permission-profile: strict
+          isolation: docker
+          allow-write: "false"
+          timeout-minutes: "20"
+          prompt: >-
+            Analyze this Issue against the current repository. Explain the code
+            evidence, likely causes, missing information and proposed next steps.
+            Do not implement changes or execute repository code.

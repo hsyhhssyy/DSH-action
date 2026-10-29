@@ -18,6 +18,11 @@ Action 会启动与凭据隔离的 DSH worker，校验结构化结果，再由�
 
 ## 快速开始
 
+本 Fork 新增默认关闭的 `auto-analyze-issues`：任何用户创建 Issue 后，自动在 Docker
+中读取不可变源码快照并发布只读分析结果。见 [Issue 分析模板](examples/issue-analysis.yml)
+和[使用指南](docs/usage.zh-CN.md#自动分析新-issue)。该输入尚未发布，请使用包含此功能、
+经过复核的 Fork commit，不要使用上游 `v0.12.2` 标签。
+
 Action 会在 GitHub 的 Linux 运行器上安装并运行 DSH，**你的电脑不需要安装 DSH 或 Docker**。本地 DSH 是在你电脑上运行的独立程序，它的密钥和设置不会自动同步到 GitHub。
 
 ### 1. 安装工具

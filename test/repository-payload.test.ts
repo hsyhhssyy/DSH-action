@@ -38,6 +38,42 @@ function api(entries: unknown[], content = "content\n") {
 }
 
 describe("immutable repository materialization", () => {
+  it("can explicitly omit gitlinks from read-only views without following their repository", async () => {
+    const root = await mkdtemp(join(tmpdir(), "dsh-materialize-submodule-"));
+    roots.push(root);
+    const output = join(root, "repository");
+    const client = api([
+      { path: ".docs", type: "commit", mode: "160000", sha: "d".repeat(40) },
+      { path: "main.ts", type: "blob", mode: "100644", sha: blobSha, size: 8 },
+    ]);
+    const result = await materializeRepositoryAtSha(client, "o", "r", commitSha, output, {
+      submodules: "omit",
+    });
+    expect(result).toMatchObject({ files: 1, bytes: 8, omittedSubmodules: [".docs"] });
+    expect(await readFile(join(output, "main.ts"), "utf8")).toBe("content\n");
+    await expect(stat(join(output, ".docs"))).rejects.toThrow();
+    expect(client.rest.git.getBlob).toHaveBeenCalledTimes(1);
+    expect(client.rest.git.getBlob).toHaveBeenCalledWith({
+      owner: "o",
+      repo: "r",
+      file_sha: blobSha,
+    });
+  });
+
+  it.each([
+    { path: "link", type: "blob", mode: "120000", sha: blobSha, size: 8 },
+    { path: "../escape", type: "commit", mode: "160000", sha: blobSha },
+    { path: "module", type: "commit", mode: "100644", sha: blobSha },
+  ])("still rejects unsafe entries when omitting submodules: %j", async (entry) => {
+    const root = await mkdtemp(join(tmpdir(), "dsh-materialize-submodule-bad-"));
+    roots.push(root);
+    await expect(
+      materializeRepositoryAtSha(api([entry]), "o", "r", commitSha, join(root, "repository"), {
+        submodules: "omit",
+      }),
+    ).rejects.toThrow();
+  });
+
   it("writes only validated regular blobs and preserves executable mode", async () => {
     const root = await mkdtemp(join(tmpdir(), "dsh-materialize-"));
     roots.push(root);

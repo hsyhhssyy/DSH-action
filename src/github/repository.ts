@@ -55,10 +55,15 @@ function strictBase64(value: string, path: string): Buffer {
 
 function validateBlobs(
   entries: Awaited<ReturnType<GitHubClient["rest"]["git"]["getTree"]>>["data"]["tree"],
-): readonly MaterializableBlob[] {
+  submodules: "reject" | "omit",
+): {
+  readonly blobs: readonly MaterializableBlob[];
+  readonly omittedSubmodules: readonly string[];
+} {
   const blobs: MaterializableBlob[] = [];
+  const omittedSubmodules: string[] = [];
   const paths = new Set<string>();
-  const blobPaths = new Set<string>();
+  const leafPaths = new Set<string>();
   let bytes = 0;
   for (const entry of entries) {
     const path = safePath(entry.path);
@@ -69,6 +74,12 @@ function validateBlobs(
       if (entry.mode !== "040000") {
         throw new Error(`Unsupported Git tree mode for ${path}: ${entry.mode}`);
       }
+      continue;
+    }
+    if (entry.type === "commit" && entry.mode === "160000" && submodules === "omit") {
+      // A read-only view may omit gitlinks, but never follows their repositories or URLs.
+      omittedSubmodules.push(path);
+      leafPaths.add(path);
       continue;
     }
     if (entry.type !== "blob") {
@@ -85,7 +96,7 @@ function validateBlobs(
     if (!Number.isSafeInteger(bytes) || bytes > MAX_BYTES) {
       throw new Error("Repository exceeds materialization byte limit");
     }
-    blobPaths.add(path);
+    leafPaths.add(path);
     blobs.push({
       path,
       sha: validateCommitSha(entry.sha),
@@ -94,15 +105,15 @@ function validateBlobs(
     });
   }
   if (blobs.length > MAX_FILES) throw new Error("Repository exceeds materialization file limit");
-  for (const path of blobPaths) {
+  for (const path of leafPaths) {
     const segments = path.split("/");
     for (let index = 1; index < segments.length; index += 1) {
-      if (blobPaths.has(segments.slice(0, index).join("/"))) {
+      if (leafPaths.has(segments.slice(0, index).join("/"))) {
         throw new Error(`Git blob path conflicts with a parent file: ${path}`);
       }
     }
   }
-  return blobs;
+  return { blobs, omittedSubmodules };
 }
 
 export interface MaterializedRepository {
@@ -110,6 +121,7 @@ export interface MaterializedRepository {
   readonly sha: string;
   readonly files: number;
   readonly bytes: number;
+  readonly omittedSubmodules?: readonly string[];
 }
 
 /** Materialize an immutable commit without checkout credentials, hooks or .git. */
@@ -119,6 +131,7 @@ export async function materializeRepositoryAtSha(
   repo: string,
   sha: string,
   root: string,
+  options: { readonly submodules?: "reject" | "omit" } = {},
 ): Promise<MaterializedRepository> {
   const commitSha = validateCommitSha(sha);
   const commit = await client.rest.git.getCommit({ owner, repo, commit_sha: commitSha });
@@ -135,7 +148,10 @@ export async function materializeRepositoryAtSha(
     throw new Error("GitHub returned a different tree SHA");
   }
   if (tree.data.truncated) throw new Error("GitHub tree response was truncated");
-  const blobs = validateBlobs(tree.data.tree);
+  const { blobs, omittedSubmodules } = validateBlobs(
+    tree.data.tree,
+    options.submodules ?? "reject",
+  );
   await mkdir(root, { recursive: true, mode: 0o700 });
   const bytes = blobs.reduce((total, entry) => total + entry.size, 0);
   const rootPath = resolve(root);
@@ -179,5 +195,11 @@ export async function materializeRepositoryAtSha(
       ? failure
       : new Error("Repository materialization failed", { cause: failure });
   }
-  return { root, sha: commitSha, files: blobs.length, bytes };
+  return {
+    root,
+    sha: commitSha,
+    files: blobs.length,
+    bytes,
+    ...(omittedSubmodules.length === 0 ? {} : { omittedSubmodules }),
+  };
 }

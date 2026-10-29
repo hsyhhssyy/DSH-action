@@ -29,6 +29,38 @@ For fork PRs, ask `@dsh` in a top-level **Conversation** comment. Review/inline 
 
 The workflow's `if: contains(..., '@dsh')` expression is only a coarse job filter. Keep it aligned when changing `trigger-phrase`; the Action still performs exact parsing, context checks, and authorization. Label/assignee routes and actor/comment filters are maintainer-controlled routing only and never grant trust.
 
+## Automatic Issue analysis
+
+Subscribe to `issues: [opened]` and set `auto-analyze-issues: "true"` in the
+maintainer-owned workflow. With the default `command: auto`, each newly opened
+Issue becomes a read-only `task`, including Issues from authors without repository
+write permission. No mention or label is required. Existing `allowed-actors` and
+`allowed-bots` filters still apply; bots need an explicit allowlist entry.
+
+Use [examples/issue-analysis.yml](../examples/issue-analysis.yml), replacing its
+Action reference with a reviewed fork commit containing this unreleased input.
+The upstream `v0.12.2` tag does not include it. The workflow needs only
+`contents: read` and `issues: write`; keep checkout credentials disabled.
+
+The Controller authorizes only immutable repository reads and its own result
+comment. Docker and `dsh-mode: controlled` are required; native composition owns
+its complete tool graph and is not a read/search-only tool boundary. This route never grants execution, extensions,
+network authority, file edits, labels, Git refs or PR creation, even when the same
+workflow sets `task-access: write` or `allow-write: "true"`. It reads the configured
+base branch (the default branch unless explicitly selected) through the existing
+SHA-bound, credential-free workspace pipeline. Read-only snapshots omit submodules
+without fetching them, and the context lists those unavailable paths. Write
+snapshots continue to reject submodules. Issue text remains untrusted
+context. Only literal workflow `prompt` or `prompt-file` can replace the default
+analysis instructions. Explicit `command` inputs retain their existing priority
+and authorization; this opt-in does not relax interactive `@dsh` checks or PR
+review policy.
+
+Analysis updates the existing Controller-owned task comment. Edited, reopened
+and other Issue events do not automatically restart it. Use per-Issue concurrency
+and the existing timeout controls; enabling public intake can spend model quota
+for every eligible new Issue.
+
 ## General tasks
 
 Ask directly for repository questions or code analysis:

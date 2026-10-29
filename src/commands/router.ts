@@ -64,9 +64,14 @@ export function mentionBody(context: GitHubContext): string | undefined {
   return undefined;
 }
 
-function mentionBotActors(context: GitHubContext): readonly string[] {
+function triggerBotActors(context: GitHubContext): readonly string[] {
   const payload = context.payload;
-  const entry = context.rawEventName === "pull_request_review" ? payload.review : payload.comment;
+  const entry =
+    context.rawEventName === "pull_request_review"
+      ? payload.review
+      : context.rawEventName === "issues"
+        ? payload.issue
+        : payload.comment;
   const author = isRecord(entry) ? entry.user : undefined;
   const actors = /\[bot\]$/iu.test(context.actor) ? [context.actor] : [];
   for (const identity of [author, payload.sender]) {
@@ -140,9 +145,30 @@ export function routeCommand(context: GitHubContext, inputs: ActionInputs): Rout
     };
   }
 
+  if (
+    inputs.autoAnalyzeIssues &&
+    context.kind === "entity" &&
+    context.rawEventName === "issues" &&
+    context.eventAction === "opened" &&
+    !context.isPullRequest
+  ) {
+    if (triggerBotActors(context).some((actor) => !isAllowedActor(actor, inputs.allowedBots))) {
+      return null;
+    }
+    return {
+      operation: "task",
+      source: "automatic-event",
+      instructions: removeMarkdownImages(
+        inputs.prompt.trim() ||
+          "Analyze this Issue against the current repository. Explain the relevant code, evidence, likely causes, and proposed next steps. Distinguish verified facts from uncertainty; do not implement changes or execute repository code.",
+      ),
+      requestedAccess: "read",
+    };
+  }
+
   const body = mentionBody(context);
   if (body !== undefined) {
-    const botActors = mentionBotActors(context);
+    const botActors = triggerBotActors(context);
     if (botActors.some((actor) => !isAllowedActor(actor, inputs.allowedBots))) return null;
     const parsed = parseCommand(body, inputs.triggerPhrase, {
       naturalLanguageWrite: inputs.naturalLanguageWrite,

@@ -47,6 +47,7 @@ export function inputs(
     webSearchBaseUrl: "https://api.deepseek.com/anthropic/v1",
     botUserId: 41898282,
     progressComment: true,
+    autoAnalyzeIssues: false,
     triggerPhrase: "@dsh",
     labelTrigger: "",
     assigneeTrigger: "",

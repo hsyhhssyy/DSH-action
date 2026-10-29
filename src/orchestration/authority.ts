@@ -12,7 +12,7 @@ export function createAuthorityRevalidator(options: {
   readonly client: GitHubClient;
   readonly context: GitHubContext;
   readonly command: RoutedCommand;
-  readonly inputs: Pick<ActionInputs, "allowedBots" | "allowWrite">;
+  readonly inputs: Pick<ActionInputs, "allowedBots" | "allowWrite" | "autoAnalyzeIssues">;
   readonly policy: SecurityPolicy;
   readonly pullRequest?: { readonly isFork: boolean };
   readonly signal: AbortSignal;
@@ -34,6 +34,7 @@ export function createAuthorityRevalidator(options: {
       context,
       operation: admittedCommand.operation,
       allowWrite: inputs.allowWrite,
+      autoAnalyzeIssues: inputs.autoAnalyzeIssues,
       permissions: currentPermissions,
       requestedAccess: admittedCommand.requestedAccess,
       commandSource: admittedCommand.source,

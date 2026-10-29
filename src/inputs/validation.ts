@@ -59,6 +59,13 @@ function assertInputOnlyRuntimeInvariants(inputs: ActionInputs): void {
   validatedControllerBaseUrl(inputs.baseUrl, "DeepSeek base URL");
   validatedControllerBaseUrl(inputs.webSearchBaseUrl, "Web search base URL");
 
+  if (
+    inputs.autoAnalyzeIssues &&
+    (inputs.isolation !== "docker" || inputs.dshMode !== "controlled")
+  ) {
+    throw new Error("auto-analyze-issues requires Docker isolation and dsh-mode controlled");
+  }
+
   if (inputs.sessionMode === "off") {
     if (inputs.sessionKey !== "" || inputs.sessionSourceRunId !== "") {
       throw new Error("session-key and session-source-run-id require an explicit session-mode");

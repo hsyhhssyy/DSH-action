@@ -82,14 +82,24 @@ export class ExecutionPreparation {
     const { client, context, command, snapshot, policy } = authorized;
     if (command.requestedAccess === "write") assertWriteTaskConfiguration(inputs);
     const { agentWorkspace, snapshot: workspaceSnapshot } = workspace;
-    const baseContextPacket = await buildContextPacket(
-      client,
-      context,
-      command,
-      snapshot,
-      inputs,
-      workspace.boundWriteSha,
-    );
+    const baseContextPacket = {
+      ...(await buildContextPacket(
+        client,
+        context,
+        command,
+        snapshot,
+        inputs,
+        workspace.boundWriteSha,
+      )),
+      ...(workspace.omittedSubmodules === undefined
+        ? {}
+        : {
+            repositoryCoverage: {
+              omittedSubmodules: workspace.omittedSubmodules,
+              note: "Submodules were not fetched. Their contents are unavailable; do not claim to have inspected them.",
+            },
+          }),
+    };
     throwIfCancelled(signal);
     if (command.instructionFile !== undefined || baseContextPacket.textFiles !== undefined) {
       state.textSources = {

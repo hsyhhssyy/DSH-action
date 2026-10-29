@@ -35,6 +35,7 @@ describe("loadInputs", () => {
     expect(result.allowWrite).toBe(false);
     expect(result.naturalLanguageWrite).toBe(false);
     expect(result.progressComment).toBe(true);
+    expect(result.autoAnalyzeIssues).toBe(false);
     expect(result.triggerPhrase).toBe("@dsh");
     expect(result.labelTrigger).toBe("");
     expect(result.assigneeTrigger).toBe("");
@@ -76,6 +77,24 @@ describe("loadInputs", () => {
       }),
     );
     expect(result).toMatchObject({ model: "deepseek-v4-pro", reasoningEffort: effort });
+  });
+
+  it("requires explicit opt-in and Docker for automatic Issue analysis", () => {
+    const credentials = { "deepseek-api-key": "deepseek-key", "github-token": "github-token" };
+    expect(loadInputs(reader({ ...credentials, "auto-analyze-issues": "true" }))).toMatchObject({
+      autoAnalyzeIssues: true,
+      allowWrite: false,
+      isolation: "docker",
+    });
+    expect(() => loadInputs(reader({ ...credentials, "auto-analyze-issues": "yes" }))).toThrow(
+      /Invalid action inputs/u,
+    );
+    expect(() =>
+      loadInputs(reader({ ...credentials, "auto-analyze-issues": "true", isolation: "none" })),
+    ).toThrow(/auto-analyze-issues requires Docker/u);
+    expect(() =>
+      loadInputs(reader({ ...credentials, "auto-analyze-issues": "true", "dsh-mode": "native" })),
+    ).toThrow(/dsh-mode controlled/u);
   });
 
   it.each([

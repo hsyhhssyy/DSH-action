@@ -203,6 +203,7 @@ export const actionInputsSchema = z.object({
   webSearchBaseUrl: z.url(),
   botUserId: integerInput(1, 2_147_483_647),
   progressComment: booleanInput,
+  autoAnalyzeIssues: booleanInput,
   triggerPhrase: boundedRoutingLiteral("trigger-phrase", MAX_TRIGGER_PHRASE_BYTES, false),
   labelTrigger: boundedRoutingLiteral("label-trigger", MAX_ROUTING_LITERAL_BYTES, true),
   assigneeTrigger: boundedRoutingLiteral("assignee-trigger", MAX_ROUTING_LITERAL_BYTES, true),

@@ -5,6 +5,16 @@ versioning for published action releases.
 
 ## Unreleased
 
+- Adds default-off `auto-analyze-issues` for automatic read-only analysis of newly
+  opened Issues, including external authors. Reuses SHA-bound Docker workspaces
+  and task comments without granting shell, extensions, network authority or
+  write capabilities. Explicit commands and all existing write gates are retained.
+- Adds an Issue-only workflow example and regression coverage for routing,
+  input boundaries, capability restrictions, immutable source materialization
+  and fresh authority checks.
+- Omits submodules from read-only source snapshots and reports their unavailable
+  paths in analysis context; write snapshots retain their submodule rejection.
+
 ## [0.12.2] - 2026-10-23
 
 - Resolves the official DSH MCP bridge to patched

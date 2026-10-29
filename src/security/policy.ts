@@ -32,6 +32,8 @@ export interface PolicyInput {
   readonly context: GitHubContext;
   readonly operation: Operation;
   readonly allowWrite: boolean;
+  /** Maintainer opt-in for the automatic, read-only Issue creation route only. */
+  readonly autoAnalyzeIssues?: boolean;
   readonly permissions: PermissionCheck;
   /** Controller-resolved intent. A model response can never upgrade this value. */
   readonly requestedAccess?: RequestedAccess;
@@ -101,6 +103,31 @@ export function evaluatePolicy(input: PolicyInput): SecurityPolicy {
       reason:
         "Mention command denied because every originating actor must have trusted write access",
       capabilities: noCapabilities,
+    };
+  }
+
+  if (
+    input.autoAnalyzeIssues === true &&
+    context.kind === "entity" &&
+    context.rawEventName === "issues" &&
+    context.eventAction === "opened" &&
+    !context.isPullRequest &&
+    !targetEvent &&
+    sameRepository &&
+    operation === "task" &&
+    input.requestedAccess === "read" &&
+    input.commandSource === "automatic-event"
+  ) {
+    return {
+      trust: "trusted-read",
+      allowed: true,
+      reason:
+        "Maintainer-enabled automatic Issue analysis; only immutable repository reads and result comments are authorized",
+      capabilities: {
+        ...noCapabilities,
+        readRepository: true,
+        publishComments: true,
+      },
     };
   }
 

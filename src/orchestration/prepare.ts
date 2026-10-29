@@ -159,6 +159,7 @@ export class RunPreparation {
       context,
       operation: command.operation,
       allowWrite: inputs.allowWrite,
+      autoAnalyzeIssues: inputs.autoAnalyzeIssues,
       permissions,
       requestedAccess: command.requestedAccess,
       commandSource: command.source,

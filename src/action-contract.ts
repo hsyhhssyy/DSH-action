@@ -164,6 +164,15 @@ export const ACTION_INPUT_CONTRACT = [
     docsGroup: "runtime",
   },
   {
+    name: "auto-analyze-issues",
+    runtimeKey: "autoAnalyzeIssues",
+    required: false,
+    default: "false",
+    description:
+      "Automatically route newly opened Issues to a read-only task when command is auto. Explicitly authorizes immutable repository reads for non-write authors, never execution, extensions, network, or writes. Requires controlled mode and Docker; actor and bot filters still apply.",
+    docsGroup: "routing",
+  },
+  {
     name: "trigger-phrase",
     runtimeKey: "triggerPhrase",
     required: false,
